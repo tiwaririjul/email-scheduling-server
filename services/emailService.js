@@ -8,8 +8,8 @@ const sendEmail = async (email) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
-      subject: "Hourly Update",
-      text: "This is an automated email sent every hour.",
+      subject: "SAMPLE MAIL",
+      text: "This is an automated SAMPLE EMAIL",
     };
 
     await transporter.sendMail(mailOptions);
