@@ -1,75 +1,60 @@
-// const emailService = require("../services/emailService");
-const { sendEmail } = require("../services/emailService");
-const cronManager = require("../cron/emailJob");
-const schedule = require("node-schedule");
+const {
+  sendEmail,
+  getGroqChatCompletion,
+} = require("../services/emailService");
 
 const scheduledJobs = {};
 
 const scheduleEmail = async (req, res) => {
-  const { email, scheduleDateTime } = req.body;
+  const { email, subject, message } = req.body;
 
-  if (!email || !scheduleDateTime) {
+  if (!email || !subject || !message) {
     return res.status(400).json({ success: false, message: "Invalid input." });
   }
 
-  const scheduleTime = new Date(scheduleDateTime);
-
-  if (scheduleTime <= new Date()) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Time must be in the future." });
-  }
-
-  // if (scheduledJobs[email]) {
-  //   scheduledJobs[email].cancel();
-  // }
-
-  const job = schedule.scheduleJob(scheduleDateTime, async () => {
-    try {
-      await sendEmail(email);
-      console.log(`Email sent to ${email} at ${scheduleDateTime}`);
-      delete scheduledJobs[email];
-    } catch (error) {
-      console.error("Failed to send email:", error);
-    }
-  });
-
-  scheduledJobs[email] = job;
-
-  res.status(200).json({ success: true, message: "Email scheduled." });
-};
-
-const cancelEmail = async (req, res) => {
-  const { email } = req.body;
-
-  if (scheduledJobs[email]) {
-    scheduledJobs[email].cancel();
+  try {
+    await sendEmail(email, subject, message);
+    console.log(`Email sent to ${email} subject ${subject} message ${message}`);
     delete scheduledJobs[email];
-    res.json({
-      success: true,
-      message: "Scheduled email canceled successfully.",
-    });
-  } else {
-    res.json({
-      success: false,
-      message: "No scheduled email found to cancel.",
-    });
+  } catch (error) {
+    console.error("Failed to send email:", error);
   }
+
+  res.status(200).json({ success: true, message: "Email Sent successfully" });
 };
 
-const updateEmail = async (req, res) => {
-  const { email } = req.body;
+const generatePrompt = async (req, res) => {
+  const { question } = req.body;
 
-  console.log("updating the email", email);
-
-  if (!email) {
+  if (!question) {
     return res
       .status(400)
-      .json({ error: "Email ID is required to update the cron" });
+      .json({ success: false, message: "Question is required." });
   }
 
-  cronManager.startCron(email);
-  res.status(200).json({ message: `Cron job updated for email: ${email}` });
+  try {
+    const chatCompletion = await getGroqChatCompletion(question);
+
+    console.log("chat completion ", chatCompletion);
+
+    const generatedPrompt = chatCompletion?.choices[0]?.message?.content || "";
+
+    if (!generatedPrompt) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Failed to generate prompt." });
+    }
+
+    res.status(200).json({ success: true, prompt: generatedPrompt });
+  } catch (error) {
+    console.error("Failed to generate prompt:", error.message);
+    res
+      .status(500)
+      .json({ success: false, message: "Error generating prompt." });
+  }
 };
 
-module.exports = { scheduleEmail, cancelEmail, updateEmail };
+module.exports = {
+  scheduleEmail,
+  generatePrompt,
+};
